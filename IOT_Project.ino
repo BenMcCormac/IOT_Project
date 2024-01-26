@@ -15,6 +15,8 @@
 #include <Adafruit_PN532.h>
 #include <Servo.h>
 #include "rgb_lcd.h"
+#include "secrets.h"
+#include "ThingSpeak.h"
 
 //DHT11 Setup
 DFRobot_DHT11 DHT;
@@ -32,8 +34,13 @@ const int colorR = 255;
 const int colorG = 0;
 const int colorB = 0;
 
-const char* ssid = "Humm";
-const char* password = "g00416547";
+char* ssid = SECRET_SSID;   // My network SSID (name) 
+char* password = SECRET_PASS;   // My network password
+int keyIndex = 0;            
+WiFiClient  client;
+
+unsigned long myChannelNumber = SECRET_CH_ID;
+const char * myWriteAPIKey = SECRET_WRITE_APIKEY;
 
 WebServer server(80);
 
@@ -44,6 +51,8 @@ void setup(void) {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.println("");
+
+  ThingSpeak.begin(client);  // Initialize ThingSpeak
 
   // set up the LCD's number of columns and rows:
   lcd.begin(16, 2);
@@ -92,6 +101,12 @@ void setup(void) {
 void loop(void) {
   server.handleClient();
   delay(20);//allow the cpu to switch to other tasks
+  
+  int temp = GetTemp();
+  int humid = GetHumid();
+
+  ThingSpeak.setField(1, temp);
+  ThingSpeak.setField(2, humid);
   
   uint8_t success;
   uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };	// Buffer to store the returned UID

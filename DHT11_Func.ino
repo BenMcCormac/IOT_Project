@@ -12,3 +12,17 @@ String getHumid()
   String humid = String(DHT.humidity);
   return humid;
 }
+
+int GetTemp() 
+{
+  DHT.read(DHT11_PIN);
+  int temp = int(DHT.temperature);
+  return temp;
+}
+
+int GetHumid()
+{
+  DHT.read(DHT11_PIN);
+  int humid = int(DHT.humidity);
+  return humid;
+}

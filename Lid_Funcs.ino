@@ -35,9 +35,12 @@ void motor()
       lcd.print("The lid is closed!");
     }
   }
-
-  if(lock == 1)
+  else
   {
     //When I learn how to receive info from the server this will lock someone out of the function
   }
+}
+uint8_t mPosition()
+{
+  
 }
