@@ -1,77 +1,68 @@
-// This code is derived from the HelloServer Example 
-// in the (ESP32) WebServer library .
-//
-// It hosts a webpage which has one temperature reading to display.
-// The webpage is always the same apart from the reading which would change.
-// The getTemp() function simulates getting a temperature reading.
-// homePage.h contains 2 constant string literals which is the two parts of the
-// webpage that never change.
-// handleRoot() builds up the webpage by adding as a C++ String:
-// homePagePart1 + getTemp() +homePagePart2 
-// It then serves the webpage with the command:  
-// server.send(200, "text/html", message);
-// Note the text is served as html.
-//
-// Replace the code in the homepage.h file with your own website HTML code.
-// 
-// This example requires only an ESP32 and download cable. No other hardware is reuired.
-// A wifi SSID and password is required.
-// Written by: Natasha Rohan  12/3/23
-//
+/*Code by Ben McCormack------*/
+/*15/Nov/2023----------------*/
+/*IOT Apiary-----------------*/
+
+
+//Declare Libraries
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include "homepage.h"
 #include <DFRobot_DHT11.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <Adafruit_PN532.h>
+#include <Servo.h>
+#include "rgb_lcd.h"
 
+//DHT11 Setup
 DFRobot_DHT11 DHT;
 #define DHT11_PIN 14
 
-const char* ssid = "Anto";
-const char* password = "Hotspot123";
+#define PN532_IRQ   (18)
+#define PN532_RESET (23)
+Adafruit_PN532 nfc(PN532_IRQ, PN532_RESET);
+
+Servo servo1;
+static const int servoPin = 4;
+
+rgb_lcd lcd;
+const int colorR = 255;
+const int colorG = 0;
+const int colorB = 0;
+
+const char* ssid = "Humm";
+const char* password = "g00416547";
 
 WebServer server(80);
 
-//temp function to simulate temp sensor
-String getTemp() {
-  DHT.read(DHT11_PIN);
-  String temp = String(DHT.temperature);
-  return temp;
-}
-
-String getHumid(){
-  DHT.read(DHT11_PIN);
-  String humid = String(DHT.humidity);
-  return humid;
-}
-
-void handleRoot() {
-  String message = homePagePart1 + getTemp() + homePagePart2;
-  server.send(200, "text/html", message);
-}
-
-void handleNotFound() {
-  String message = "File Not Found\n\n";
-  message += "URI: ";
-  message += server.uri();
-  message += "\nMethod: ";
-  message += (server.method() == HTTP_GET) ? "GET" : "POST";
-  message += "\nArguments: ";
-  message += server.args();
-  message += "\n";
-  for (uint8_t i = 0; i < server.args(); i++) {
-    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
-  }
-  server.send(404, "text/plain", message);
-}
-
 void setup(void) {
+  lcd.clear();
 
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.println("");
+
+  // set up the LCD's number of columns and rows:
+  lcd.begin(16, 2);
+  
+  lcd.setRGB(colorR, colorG, colorB);
+
+  while (!Serial) delay(10); // for Leonardo/Micro/Zero
+
+  nfc.begin();
+
+  //Error catching
+  uint32_t versiondata = nfc.getFirmwareVersion();
+  if (! versiondata) {
+    Serial.print(versiondata);
+    Serial.print("Didn't find PN53x board");
+    while (1); // halt
+  }
+
+  servo1.attach(servoPin);
 
   // Wait for connection
   while (WiFi.status() != WL_CONNECTED) {
@@ -100,5 +91,33 @@ void setup(void) {
 
 void loop(void) {
   server.handleClient();
-  delay(2);//allow the cpu to switch to other tasks
+  delay(20);//allow the cpu to switch to other tasks
+  
+  uint8_t success;
+  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };	// Buffer to store the returned UID
+  uint8_t uidLength;				// Length of the UID (4 or 7 bytes depending on ISO14443A card type)
+
+  success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength);
+  nfc.PrintHex(uid, uidLength);
+  Serial.println("");
+
+  if(uidLength == 4)
+  {
+    // We probably have a Mifare Classic card ...
+    Serial.println("Seems to be a Mifare Classic card (4 byte UID)");
+
+    // Now we need to try to authenticate it for read/write access
+    // Try with the factory default KeyA: 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF
+    Serial.println("Authenticating block 4 with KEYA value");
+    uint8_t keya[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
+    success = nfc.mifareclassic_AuthenticateBlock(uid, uidLength, 4, 0, keya);
+
+    //To test to see if it is a blocking function
+    //lcd.print("No Block");
+    if(success)
+    {
+      motor();
+    }
+  }
 }
